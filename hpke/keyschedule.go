@@ -24,7 +24,7 @@ type Exporter interface {
 }
 
 type context struct {
-	suite          Suite
+	suite          *cipherSuite
 	aead           cipher.AEAD
 	sharedSecret   []byte
 	keyScheduleCtx []byte
@@ -35,7 +35,7 @@ type context struct {
 	exporterSecret []byte
 }
 
-func (s Suite) verifyPSK(encMode mode, psk, pskID []byte) error {
+func (s *cipherSuite) verifyPSK(encMode mode, psk, pskID []byte) error {
 	gotPsk := !bytes.Equal(psk, defaultPSK)
 	gotPskID := !bytes.Equal(pskID, defaultPSKID)
 
@@ -60,7 +60,7 @@ func (s Suite) verifyPSK(encMode mode, psk, pskID []byte) error {
 	return nil
 }
 
-func (s Suite) keySchedule(encMode mode, sharedSecret, info, psk, pskID []byte) (*context, error) {
+func (s *cipherSuite) keySchedule(encMode mode, sharedSecret, info, psk, pskID []byte) (*context, error) {
 	// https://www.rfc-editor.org/rfc/rfc9180.html#section-7.2.1-4
 	switch {
 	case len(info) > 64:

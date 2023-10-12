@@ -27,7 +27,7 @@ type Opener interface {
 }
 
 type receiver struct {
-	Suite
+	*cipherSuite
 	skR  *ecdh.PrivateKey
 	info []byte
 }

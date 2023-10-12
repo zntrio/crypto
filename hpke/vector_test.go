@@ -103,16 +103,16 @@ func TestRFCVector(t *testing.T) {
 			t.Parallel()
 
 			s := New(KEM(vector.KemID), KDF(vector.KdfID), AEAD(vector.AeadID))
+			kem, kdf, aead := s.Params()
 			if !s.IsValid() {
-				kem, kdf, aead := s.Params()
 				t.Skipf("Skipping test with invalid suite params (%x/%x/%x)", kem, kdf, aead)
 			}
 
-			sender, receiver := buildSenderAndReceiver(t, &vector, s)
+			sender, receiver := buildSenderAndReceiver(t, &vector, kem, s)
 			require.NotNil(t, sender)
 			require.NotNil(t, receiver)
 
-			sealer, opener := protocolSetup(t, &vector, sender, receiver, s)
+			sealer, opener := protocolSetup(t, &vector, sender, receiver, kem, s)
 			require.NotNil(t, sealer)
 			require.NotNil(t, opener)
 
@@ -120,8 +120,8 @@ func TestRFCVector(t *testing.T) {
 			csealer, _ := sealer.(*context)
 			copener, _ := opener.(*context)
 
-			checkKeyschedule(t, &vector, s, csealer)
-			checkKeyschedule(t, &vector, s, copener)
+			checkKeyschedule(t, &vector, aead, csealer)
+			checkKeyschedule(t, &vector, aead, copener)
 			checkEncryptions(t, &vector, csealer, copener)
 			checkExports(t, &vector, csealer)
 			checkExports(t, &vector, copener)
@@ -157,24 +157,24 @@ func checkEncryptions(t *testing.T, v *vector, sealer *context, opener *context)
 	}
 }
 
-func checkKeyschedule(t *testing.T, v *vector, s *Suite, ctx *context) {
+func checkKeyschedule(t *testing.T, v *vector, aeadID AEAD, ctx *context) {
 	t.Helper()
 
 	require.NotNil(t, ctx)
 	require.Equal(t, []byte(v.KeyScheduleContext), ctx.keyScheduleCtx)
 	require.Equal(t, []byte(v.SharedSecret), ctx.sharedSecret)
 	require.Equal(t, []byte(v.Secret), ctx.secret)
-	if s.aeadID != AEAD_EXPORT_ONLY {
+	if aeadID != AEAD_EXPORT_ONLY {
 		require.Equal(t, []byte(v.Key), ctx.key)
 		require.Equal(t, []byte(v.BaseNonce), ctx.baseNonce)
 	}
 	require.Equal(t, []byte(v.ExporterSecret), ctx.exporterSecret)
 }
 
-func buildSenderAndReceiver(t *testing.T, v *vector, s *Suite) (Sender, Receiver) {
+func buildSenderAndReceiver(t *testing.T, v *vector, kemID KEM, s Suite) (Sender, Receiver) {
 	t.Helper()
 
-	scheme := s.kemID.Scheme()
+	scheme := kemID.Scheme()
 	// Decode materials
 	pkR, err := scheme.DeserializePublicKey(v.PkRm)
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func buildSenderAndReceiver(t *testing.T, v *vector, s *Suite) (Sender, Receiver
 	return sender, receiver
 }
 
-func protocolSetup(t *testing.T, v *vector, snd Sender, rcv Receiver, s *Suite) (sealer Sealer, opener Opener) {
+func protocolSetup(t *testing.T, v *vector, snd Sender, rcv Receiver, kemID KEM, s Suite) (sealer Sealer, opener Opener) {
 	t.Helper()
 
 	var (
@@ -202,7 +202,7 @@ func protocolSetup(t *testing.T, v *vector, snd Sender, rcv Receiver, s *Suite) 
 	sender := snd.(*sender)
 	seedReader := bytes.NewReader(v.IkmE)
 
-	scheme := s.kemID.Scheme()
+	scheme := kemID.Scheme()
 
 	switch v.ModeID {
 	case uint8(modeBase):

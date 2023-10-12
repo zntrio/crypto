@@ -29,7 +29,7 @@ type Sealer interface {
 }
 
 type sender struct {
-	Suite
+	*cipherSuite
 	pkR  *ecdh.PublicKey
 	info []byte
 }
