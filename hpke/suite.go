@@ -12,7 +12,7 @@ import (
 )
 
 // Suite repesents a HPKE cipher suite contract.
-type Suite interface{
+type Suite interface {
 	IsValid() bool
 	Params() (KEM, KDF, AEAD)
 	KEM() kem.Scheme

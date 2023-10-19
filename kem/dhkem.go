@@ -6,12 +6,14 @@ package kem
 
 import (
 	"crypto/ecdh"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"math/big"
 
 	"golang.org/x/crypto/hkdf"
 )
@@ -36,6 +38,7 @@ type dhkem struct {
 	nPk            uint16
 	nSk            uint16
 	keyDeriverFunc keyDeriver
+	useCompact     bool
 }
 
 // SuiteID returns the public suite identifier used for material derivation.
@@ -85,12 +88,7 @@ func (kem *dhkem) GenerateKeyPair() (*ecdh.PublicKey, *ecdh.PrivateKey, error) {
 
 // SerializePublicKey exports the given public key as a byte array.
 func (kem *dhkem) SerializePublicKey(pkX *ecdh.PublicKey) []byte {
-	raw := pkX.Bytes()
-	if len(raw) != int(kem.nPk) {
-		panic("invalid public key size")
-	}
-
-	return raw
+	return kem.serializePublicKey(pkX)
 }
 
 // DeserializePublicKey reads the given content and try to extract a public key
@@ -100,7 +98,7 @@ func (kem *dhkem) DeserializePublicKey(pkXxm []byte) (*ecdh.PublicKey, error) {
 		return nil, errors.New("public key data size is invalid")
 	}
 
-	return kem.curve.NewPublicKey(pkXxm)
+	return kem.deserializePublicKey(pkXxm)
 }
 
 // SerializePrivateKey exports the given private key as a byte array.
@@ -376,4 +374,111 @@ func (kem *dhkem) labeledExpand(prk, label, info []byte, outputLen uint16) ([]by
 
 func (kem *dhkem) wipeBytes(buf []byte) {
 	clear(buf)
+}
+
+func (kem *dhkem) serializePublicKey(pkX *ecdh.PublicKey) []byte {
+	raw := pkX.Bytes()
+
+	switch kem.curve {
+	case ecdh.X25519():
+		return raw
+	case ecdh.P256(), ecdh.P384(), ecdh.P521():
+		if kem.useCompact {
+			// Return X point without prefix.
+			return raw[1 : 1+kem.nPk]
+		}
+
+		return raw
+	default:
+	}
+
+	panic("unsupported serialization")
+}
+
+func (kem *dhkem) deserializePublicKey(raw []byte) (*ecdh.PublicKey, error) {
+	switch kem.curve {
+	case ecdh.P256():
+		switch {
+		case kem.useCompact && len(raw) == int(kem.nPk):
+			return fromRawRepresentation(elliptic.P256(), raw)
+		case raw[0] == 4:
+			return kem.curve.NewPublicKey(raw)
+		}
+	case ecdh.P384():
+		switch {
+		case kem.useCompact && len(raw) == int(kem.nPk):
+			return fromRawRepresentation(elliptic.P384(), raw)
+		case raw[0] == 4:
+			return kem.curve.NewPublicKey(raw)
+		}
+	case ecdh.P521():
+		switch {
+		case kem.useCompact && len(raw) == int(kem.nPk):
+			return fromRawRepresentation(elliptic.P521(), raw)
+		case raw[0] == 4:
+			return kem.curve.NewPublicKey(raw)
+		}
+	case ecdh.X25519():
+		return kem.curve.NewPublicKey(raw)
+	}
+
+	return nil, errors.New("unsupported curve")
+}
+
+func fromRawRepresentation(c elliptic.Curve, in []byte) (*ecdh.PublicKey, error) {
+	// Select the appropriate ECDH curve
+	var ecdhCurve ecdh.Curve
+	switch c {
+	case elliptic.P256():
+		ecdhCurve = ecdh.P256()
+		if len(in) != 32 {
+			return nil, errors.New("invalid content length")
+		}
+	case elliptic.P384():
+		ecdhCurve = ecdh.P384()
+		if len(in) != 48 {
+			return nil, errors.New("invalid content length")
+		}
+	case elliptic.P521():
+		ecdhCurve = ecdh.P521()
+		if len(in) != 66 {
+			return nil, errors.New("invalid content length")
+		}
+	default:
+		return nil, errors.New("unsupported curve")
+	}
+
+	// Using Shank formula for modular square root.
+	// y = ((x^3 + a*x + b)^((p + 1)/4)) mod p
+	x := big.NewInt(0).SetBytes(in)
+	b := c.Params().B
+	p := c.Params().P
+
+	x3 := new(big.Int).Mul(x, x)
+	x3.Mul(x3, x)
+	threeX := new(big.Int).Lsh(x, 1)
+	threeX.Add(threeX, x)
+	x3.Sub(x3, threeX)
+	x3.Add(x3, b)
+
+	p1 := new(big.Int).Add(p, big.NewInt(1))
+	p1.Div(p1, big.NewInt(4))
+
+	yPrime := new(big.Int).Exp(x3, p1, p)
+	yPrimeSubP := new(big.Int).Sub(p, yPrime)
+
+	// y = min(yPrime, p-yPrime)
+	var y *big.Int
+	if yPrime.Cmp(yPrimeSubP) < 0 {
+		y = yPrime
+	} else {
+		y = yPrimeSubP
+	}
+
+	// Prepare uncompressed format
+	ypoint := make([]byte, len(in))
+	raw := append([]byte{0x04}, in...)
+	raw = append(raw, y.FillBytes(ypoint)...)
+
+	return ecdhCurve.NewPublicKey(raw)
 }

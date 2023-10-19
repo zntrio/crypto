@@ -50,13 +50,13 @@ const (
 func (k KEM) Scheme() kem.Scheme {
 	switch k {
 	case KEM_P256_HKDF_SHA256:
-		return kem.DHP256HKDFSHA256()
+		return kem.DHKEMP256HKDFSHA256()
 	case KEM_P384_HKDF_SHA384:
-		return kem.DHP384HKDFSHA384()
+		return kem.DHKEMP384HKDFSHA384()
 	case KEM_P521_HKDF_SHA512:
-		return kem.DHP521HKDFSHA512()
+		return kem.DHKEMP521HKDFSHA512()
 	case KEM_X25519_HKDF_SHA256:
-		return kem.DHX25519HKDFSHA256()
+		return kem.DHKEMX25519HKDFSHA256()
 	default:
 		panic("invalid kem suite")
 	}
