@@ -16,6 +16,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"zntr.io/crypto/hpke/aead"
+	"zntr.io/crypto/hpke/kdf"
+	"zntr.io/crypto/hpke/kem"
 )
 
 type hexByteSlice []byte
@@ -102,7 +105,7 @@ func TestRFCVector(t *testing.T) {
 		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			s := New(KEM(vector.KemID), KDF(vector.KdfID), AEAD(vector.AeadID))
+			s := New(kem.KEM(vector.KemID), kdf.KDF(vector.KdfID), aead.AEAD(vector.AeadID))
 			kem, kdf, aead := s.Params()
 			if !s.IsValid() {
 				t.Skipf("Skipping test with invalid suite params (%x/%x/%x)", kem, kdf, aead)
@@ -112,7 +115,7 @@ func TestRFCVector(t *testing.T) {
 			require.NotNil(t, sender)
 			require.NotNil(t, receiver)
 
-			sealer, opener := protocolSetup(t, &vector, sender, receiver, kem, s)
+			sealer, opener := protocolSetup(t, &vector, sender, receiver, kem)
 			require.NotNil(t, sealer)
 			require.NotNil(t, opener)
 
@@ -157,21 +160,21 @@ func checkEncryptions(t *testing.T, v *vector, sealer *context, opener *context)
 	}
 }
 
-func checkKeyschedule(t *testing.T, v *vector, aeadID AEAD, ctx *context) {
+func checkKeyschedule(t *testing.T, v *vector, aeadID aead.AEAD, ctx *context) {
 	t.Helper()
 
 	require.NotNil(t, ctx)
 	require.Equal(t, []byte(v.KeyScheduleContext), ctx.keyScheduleCtx)
 	require.Equal(t, []byte(v.SharedSecret), ctx.sharedSecret)
 	require.Equal(t, []byte(v.Secret), ctx.secret)
-	if aeadID != AEAD_EXPORT_ONLY {
+	if aeadID != aead.EXPORT_ONLY {
 		require.Equal(t, []byte(v.Key), ctx.key)
 		require.Equal(t, []byte(v.BaseNonce), ctx.baseNonce)
 	}
 	require.Equal(t, []byte(v.ExporterSecret), ctx.exporterSecret)
 }
 
-func buildSenderAndReceiver(t *testing.T, v *vector, kemID KEM, s Suite) (Sender, Receiver) {
+func buildSenderAndReceiver(t *testing.T, v *vector, kemID kem.KEM, s Suite) (Sender, Receiver) {
 	t.Helper()
 
 	scheme := kemID.Scheme()
@@ -188,7 +191,7 @@ func buildSenderAndReceiver(t *testing.T, v *vector, kemID KEM, s Suite) (Sender
 	return sender, receiver
 }
 
-func protocolSetup(t *testing.T, v *vector, snd Sender, rcv Receiver, kemID KEM, s Suite) (sealer Sealer, opener Opener) {
+func protocolSetup(t *testing.T, v *vector, snd Sender, rcv Receiver, kemID kem.KEM) (sealer Sealer, opener Opener) {
 	t.Helper()
 
 	var (

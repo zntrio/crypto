@@ -30,7 +30,7 @@ var (
 
 // Implements https://www.rfc-editor.org/rfc/rfc9180.html#name-dh-based-kem-dhkem
 type dhkem struct {
-	kemID          uint16
+	kemID          KEM
 	curve          ecdh.Curve
 	fh             func() hash.Hash
 	nSecret        uint16
@@ -46,7 +46,7 @@ func (kem *dhkem) SuiteID() []byte {
 	var out [5]byte
 	// suite_id = concat("KEM", I2OSP(kem_id, 2))
 	out[0], out[1], out[2] = 'K', 'E', 'M'
-	binary.BigEndian.PutUint16(out[3:5], kem.kemID)
+	binary.BigEndian.PutUint16(out[3:5], uint16(kem.kemID))
 	return out[:]
 }
 

@@ -31,15 +31,54 @@ type Scheme interface {
 	SecretSize() uint16
 }
 
+// KEM represent iana-registered KEM identifier.
+// https://www.iana.org/assignments/hpke/hpke.xhtml
+type KEM uint16
+
+//nolint:stylecheck
 const (
-	DHKEM_P256_HDKF_SHA256   uint16 = 0x0010
-	DHKEM_P384_HDKF_SHA384   uint16 = 0x0011
-	DHKEM_P521_HDKF_SHA512   uint16 = 0x0012
-	DHKEM_CP256_HDKF_SHA256  uint16 = 0x0013
-	DHKEM_CP384_HDKF_SHA384  uint16 = 0x0014
-	DHKEM_CP521_HDKF_SHA512  uint16 = 0x0015
-	DHKEM_X25519_HDKF_SHA256 uint16 = 0x0020
+	DHKEM_P256_HDKF_SHA256   KEM = 0x0010
+	DHKEM_P384_HDKF_SHA384   KEM = 0x0011
+	DHKEM_P521_HDKF_SHA512   KEM = 0x0012
+	DHKEM_CP256_HDKF_SHA256  KEM = 0x0013
+	DHKEM_CP384_HDKF_SHA384  KEM = 0x0014
+	DHKEM_CP521_HDKF_SHA512  KEM = 0x0015
+	DHKEM_X25519_HDKF_SHA256 KEM = 0x0020
 )
+
+// Scheme returns an initialized KEM scheme instance.
+func (k KEM) Scheme() Scheme {
+	switch k {
+	case DHKEM_P256_HDKF_SHA256:
+		return DHKEMP256HKDFSHA256()
+	case DHKEM_P384_HDKF_SHA384:
+		return DHKEMP384HKDFSHA384()
+	case DHKEM_P521_HDKF_SHA512:
+		return DHKEMP521HKDFSHA512()
+	case DHKEM_CP256_HDKF_SHA256:
+		return DHKEMCP256HKDFSHA256()
+	case DHKEM_CP384_HDKF_SHA384:
+		return DHKEMCP384HKDFSHA384()
+	case DHKEM_CP521_HDKF_SHA512:
+		return DHKEMCP521HKDFSHA512()
+	case DHKEM_X25519_HDKF_SHA256:
+		return DHKEMX25519HKDFSHA256()
+	default:
+		panic("invalid kem suite")
+	}
+}
+
+// IsValid checks if the given KEM is supported.
+func (k KEM) IsValid() bool {
+	switch k {
+	case DHKEM_P256_HDKF_SHA256, DHKEM_P384_HDKF_SHA384, DHKEM_P521_HDKF_SHA512,
+		DHKEM_CP256_HDKF_SHA256, DHKEM_CP384_HDKF_SHA384, DHKEM_CP521_HDKF_SHA512,
+		DHKEM_X25519_HDKF_SHA256:
+		return true
+	default:
+		return false
+	}
+}
 
 // DHKEMP256HKDFSHA256 defines a KEM Suite based on P-256 curve with HKDF-SHA256
 // for shared secret derivation.

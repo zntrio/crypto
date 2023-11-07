@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+
+	"zntr.io/crypto/hpke/aead"
 )
 
 var (
@@ -86,17 +88,17 @@ func (s *cipherSuite) keySchedule(encMode mode, sharedSecret, info, psk, pskID [
 	secret := s.labeledExtract(sharedSecret, []byte("secret"), psk)
 
 	var (
-		aead           cipher.AEAD
+		aeadCipher     cipher.AEAD
 		key, baseNonce []byte
 	)
-	if s.aeadID != AEAD_EXPORT_ONLY {
+	if s.aeadID != aead.EXPORT_ONLY {
 		var err error
 
 		key, err = s.labeledExpand(secret, []byte("key"), keyScheduleContext, s.aeadID.KeySize())
 		if err != nil {
 			return nil, fmt.Errorf("unable to derive encryption key: %w", err)
 		}
-		aead, err = s.aeadID.New(key)
+		aeadCipher, err = s.aeadID.New(key)
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize AEAD encryption: %w", err)
 		}
@@ -114,7 +116,7 @@ func (s *cipherSuite) keySchedule(encMode mode, sharedSecret, info, psk, pskID [
 
 	return &context{
 		suite:          s,
-		aead:           aead,
+		aead:           aeadCipher,
 		sharedSecret:   sharedSecret,
 		keyScheduleCtx: keyScheduleContext,
 		secret:         secret,
@@ -126,7 +128,7 @@ func (s *cipherSuite) keySchedule(encMode mode, sharedSecret, info, psk, pskID [
 }
 
 func (c *context) Seal(plaintext, aad []byte) ([]byte, error) {
-	if c.suite.aeadID == AEAD_EXPORT_ONLY {
+	if c.suite.aeadID == aead.EXPORT_ONLY {
 		return nil, errors.New("seal operation not available in export only mode")
 	}
 
@@ -140,7 +142,7 @@ func (c *context) Seal(plaintext, aad []byte) ([]byte, error) {
 }
 
 func (c *context) Open(ciphertext, aad []byte) ([]byte, error) {
-	if c.suite.aeadID == AEAD_EXPORT_ONLY {
+	if c.suite.aeadID == aead.EXPORT_ONLY {
 		return nil, errors.New("open operation not available in export only mode")
 	}
 

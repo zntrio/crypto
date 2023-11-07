@@ -8,20 +8,23 @@ import (
 	"crypto/ecdh"
 	"encoding/binary"
 
-	"zntr.io/crypto/kem"
+	"zntr.io/crypto/hpke/aead"
+	"zntr.io/crypto/hpke/kdf"
+	"zntr.io/crypto/hpke/kem"
 )
 
 // Suite repesents a HPKE cipher suite contract.
 type Suite interface {
 	IsValid() bool
-	Params() (KEM, KDF, AEAD)
+	Params() (kem.KEM, kdf.KDF, aead.AEAD)
 	KEM() kem.Scheme
+	AEAD() aead.AEAD
 	Sender(pkR *ecdh.PublicKey, info []byte) Sender
 	Receiver(skR *ecdh.PrivateKey, info []byte) Receiver
 }
 
 // New initializes a new HPKE suite.
-func New(kemID KEM, kdfID KDF, aeadID AEAD) Suite {
+func New(kemID kem.KEM, kdfID kdf.KDF, aeadID aead.AEAD) Suite {
 	return &cipherSuite{
 		kemID:  kemID,
 		kdfID:  kdfID,
@@ -31,9 +34,9 @@ func New(kemID KEM, kdfID KDF, aeadID AEAD) Suite {
 
 // Suite represents HPKE suite parameters.
 type cipherSuite struct {
-	kemID  KEM
-	kdfID  KDF
-	aeadID AEAD
+	kemID  kem.KEM
+	kdfID  kdf.KDF
+	aeadID aead.AEAD
 }
 
 // IsValid checks if the suite is initialized with valid values.
@@ -44,6 +47,11 @@ func (s *cipherSuite) IsValid() bool {
 // KEM returns the associated KEM algorithm.
 func (s *cipherSuite) KEM() kem.Scheme {
 	return s.kemID.Scheme()
+}
+
+// AEAD returns the associated AEAD algorithm.
+func (s *cipherSuite) AEAD() aead.AEAD {
+	return s.aeadID
 }
 
 // SuiteID returns the public suite identifier used for material derivation.
@@ -58,7 +66,7 @@ func (s *cipherSuite) suiteID() []byte {
 }
 
 // Params returns suite parameters.
-func (s *cipherSuite) Params() (KEM, KDF, AEAD) {
+func (s *cipherSuite) Params() (kem.KEM, kdf.KDF, aead.AEAD) {
 	return s.kemID, s.kdfID, s.aeadID
 }
 
